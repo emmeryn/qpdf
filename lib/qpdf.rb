@@ -15,21 +15,23 @@ class Qpdf
   @@config = {}
   cattr_accessor :config
 
-  def initialize(execute_path = nil)
+  def initialize(execute_path = nil, options: {})
     @exe_path = execute_path || find_binary_path
     raise "Location of #{EXE_NAME} unknown" if @exe_path.empty?
     raise "Bad location of #{EXE_NAME}'s path" unless File.exist?(@exe_path)
     raise "#{EXE_NAME} is not executable" unless File.executable?(@exe_path)
+
+    @options = options
   end
 
   def unlock(source_file, unlocked_file, password = nil)
-    command = "#{@exe_path} --decrypt --password='#{password}' '#{source_file}' '#{unlocked_file}'"
+    command = "#{@exe_path} #{suppress_warnings_args} --decrypt --password='#{password}' '#{source_file}' '#{unlocked_file}'"
     _, error_str, status = Open3.capture3(command)
     raise "Error: #{error_str}" unless status.success?
   end
 
   def lock(source_file, locked_file, user_password, owner_password, key_length = 40)
-    command = "#{@exe_path} --encrypt #{user_password} #{owner_password} #{key_length} -- '#{source_file}' '#{locked_file}'"
+    command = "#{@exe_path} #{suppress_warnings_args} --encrypt #{user_password} #{owner_password} #{key_length} -- '#{source_file}' '#{locked_file}'"
     _, error_str, status = Open3.capture3(command)
     raise "Error: #{error_str}" unless status.success?
   end
@@ -56,7 +58,7 @@ class Qpdf
       dest_filename_before = "#{dest_filename}-"
     end
 
-    command = "#{@exe_path} --split-pages '#{source_file}' '#{dest_filename}'"
+    command = "#{@exe_path} #{suppress_warnings_args} --split-pages '#{source_file}' '#{dest_filename}'"
     num_pages = num_pages source_file
     num_pages_digits = num_pages.to_s.length
 
@@ -71,7 +73,7 @@ class Qpdf
   end
 
   def num_pages(source_file)
-    command = "#{@exe_path} --show-npages '#{source_file}'"
+    command = "#{@exe_path} #{suppress_warnings_args} --show-npages '#{source_file}'"
     output_str, error_str, status = Open3.capture3(command)
     raise "Error: #{error_str}" unless status.success?
     output_str.to_i
@@ -84,5 +86,9 @@ class Qpdf
     exe_path ||= Qpdf.config[:exe_path] unless Qpdf.config.empty?
     exe_path ||= possible_locations.map{|l| File.expand_path("#{l}/#{EXE_NAME}") }.find{|location| File.exists? location}
     exe_path || ''
+  end
+
+  def suppress_warnings_args
+    @options[:suppress_warnings] ? '--no-warn --warning-exit-0' : ''
   end
 end
